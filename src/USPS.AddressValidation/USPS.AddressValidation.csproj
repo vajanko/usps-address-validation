@@ -19,23 +19,23 @@
       `dotnet pack -p:Version=1.2.3`. Do not bump it by hand to cut a release - push a tag.
     -->
     <Version>1.0.0</Version>
-    <Authors>CDB</Authors>
-    <Company>CDB</Company>
-    <Copyright>Copyright (c) 2026 CDB</Copyright>
+    <Authors>Ondrej Kováč</Authors>
+    <Company>Ondrej Kováč</Company>
+    <Copyright>Copyright (c) 2026 Ondrej Kováč</Copyright>
     <!-- Kept on one line: NuGet renders the description verbatim, newlines and all. -->
     <Description>Reusable .NET client for USA address validation via the USPS Addresses 3.0 API, using OAuth 2.0 client credentials. Returns a standardized address with the fields USPS corrected or completed, reports addresses USPS cannot validate as results rather than exceptions, and throws only when the request itself fails.</Description>
     <PackageTags>usps;address;validation;address-verification;address-standardization;zip;zip4;usa</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <!--
-      Placeholders: set these to your GitHub repository. The CI workflow overrides both from the
-      GitHub Actions context, so a tagged release always carries the correct URLs even if these
-      are left as they are.
+      The CI workflow overrides these from the GitHub Actions context, so a tagged release carries
+      the right URLs even if the repository is renamed or forked; they are set here so a local
+      `dotnet pack` produces the same package.
     -->
-    <RepositoryUrl>https://github.com/OWNER/REPO</RepositoryUrl>
-    <PackageProjectUrl>https://github.com/OWNER/REPO</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/vajanko/usps-address-validation</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/vajanko/usps-address-validation</PackageProjectUrl>
     <RepositoryType>git</RepositoryType>
-    <PackageReleaseNotes>See https://github.com/OWNER/REPO/releases</PackageReleaseNotes>
+    <PackageReleaseNotes>See https://github.com/vajanko/usps-address-validation/releases</PackageReleaseNotes>
   </PropertyGroup>
 
   <!-- Reproducible, debuggable packages. SourceLink for GitHub ships in the .NET SDK. -->
