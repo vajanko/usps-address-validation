@@ -1,0 +1,220 @@
+# Build, test, pack and publish USPS.AddressValidation.
+#
+# Pushes to main and pull requests build and test only.
+# Pushing a tag like v1.2.3 additionally packs that exact version and publishes it to nuget.org.
+#
+#   git tag v1.2.3 && git push origin v1.2.3
+#
+# ---------------------------------------------------------------------------------------------
+# Publishing uses nuget.org Trusted Publishing (OIDC), so there is no long-lived API key to store
+# or rotate. The publish job swaps a GitHub-issued OIDC token for a nuget.org key that lives one
+# hour. See the "Releasing to nuget.org" section of README.md for the full setup.
+#
+# One-time setup on nuget.org (your username -> Trusted Publishing -> add a policy):
+#
+#   Repository Owner  the GitHub user or org that owns this repository
+#   Repository        this repository's name
+#   Workflow File     ci.yml          <- file name only, and it must match THIS file's name
+#   Environment       leave empty     <- unless you uncomment `environment:` in the publish job,
+#                                        in which case it must match exactly
+#   Scopes            "Push new packages and package versions"
+#   Glob Pattern      USPS.AddressValidation
+#   Packages          leave unticked - that list only offers packages that already exist, and
+#                     USPS.AddressValidation does not until the first release. The glob is what
+#                     authorises creating it.
+#
+# Required repository secret (Settings -> Secrets and variables -> Actions):
+#
+#   NUGET_USER      Your nuget.org username - the profile name, not your email address. This is
+#                   an account name rather than a credential, but nuget.org recommends holding it
+#                   as a secret; a repository variable (vars.NUGET_USER) works too.
+#
+# Optional, only if you enable the live USPS tests in the "Test" step below:
+#
+#   USPS_CLIENT_ID      Consumer Key of a USPS app holding an Addresses API license.
+#   USPS_CLIENT_SECRET  Consumer Secret for that app.
+# ---------------------------------------------------------------------------------------------
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*.*.*']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  # Never cancel a release build half way through publishing.
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+  CONFIGURATION: Release
+  PACKAGE_PROJECT: src/USPS.AddressValidation/USPS.AddressValidation.csproj
+
+jobs:
+  build:
+    name: Build, test and pack
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      is-release: ${{ steps.version.outputs.is-release }}
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+        with:
+          # SourceLink stamps the commit into the package; it needs real history, not a shallow clone.
+          fetch-depth: 0
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      - name: Determine version
+        id: version
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            VERSION="${GITHUB_REF#refs/tags/v}"
+            # Reject a mistyped tag here rather than publishing a nonsense version to nuget.org.
+            if [[ ! "${VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z][0-9A-Za-z.-]*)?$ ]]; then
+              echo "::error::Tag '${GITHUB_REF#refs/tags/}' is not a valid version. Expected vMAJOR.MINOR.PATCH, optionally with a prerelease suffix (for example v1.2.3 or v1.2.3-beta.1)."
+              exit 1
+            fi
+            IS_RELEASE=true
+          else
+            # Not published; the version only labels the build artifact.
+            VERSION="0.0.0-ci.${GITHUB_RUN_NUMBER}"
+            IS_RELEASE=false
+          fi
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "is-release=${IS_RELEASE}" >> "$GITHUB_OUTPUT"
+          echo "Version ${VERSION} (publish to nuget.org: ${IS_RELEASE})" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        run: >
+          dotnet build
+          --configuration "$CONFIGURATION"
+          --no-restore
+          -p:Version=${{ steps.version.outputs.version }}
+          -p:ContinuousIntegrationBuild=true
+
+      - name: Test
+        # The 110 unit tests run against a stubbed HttpMessageHandler and need no credentials.
+        # The live USPS integration tests skip themselves unless credentials are present - to run
+        # them here too, uncomment the env block and add the two secrets to the repository.
+        # env:
+        #   USPS_CLIENT_ID: ${{ secrets.USPS_CLIENT_ID }}
+        #   USPS_CLIENT_SECRET: ${{ secrets.USPS_CLIENT_SECRET }}
+        run: >
+          dotnet test
+          --configuration "$CONFIGURATION"
+          --no-build
+          -p:Version=${{ steps.version.outputs.version }}
+
+      - name: Pack
+        # RepositoryUrl and PackageProjectUrl come from the Actions context, so the package always
+        # points at this repository whatever the placeholders in the csproj say.
+        run: >
+          dotnet pack "$PACKAGE_PROJECT"
+          --configuration "$CONFIGURATION"
+          --no-build
+          --output artifacts
+          -p:Version=${{ steps.version.outputs.version }}
+          -p:ContinuousIntegrationBuild=true
+          -p:RepositoryUrl=${{ github.server_url }}/${{ github.repository }}
+          -p:PackageProjectUrl=${{ github.server_url }}/${{ github.repository }}
+          -p:PackageReleaseNotes=${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ github.ref_name }}
+
+      - name: Upload package
+        uses: actions/upload-artifact@v4
+        with:
+          name: nuget-package
+          path: |
+            artifacts/*.nupkg
+            artifacts/*.snupkg
+          if-no-files-found: error
+          retention-days: 30
+
+  publish:
+    name: Publish to nuget.org
+    needs: build
+    if: needs.build.outputs.is-release == 'true'
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      # Lets this job ask GitHub for the OIDC token that nuget.org exchanges for a short-lived
+      # API key. Without it, the NuGet/login step fails. Granted on this job only.
+      id-token: write
+
+    # Optional but recommended: create an environment named "nuget" under Settings -> Environments
+    # and add required reviewers, making every publish a manual approval. If you uncomment this,
+    # set Environment to "nuget" on the nuget.org trusted publishing policy as well, or the token
+    # exchange will be rejected.
+    # environment: nuget
+
+    steps:
+      - name: Download package
+        uses: actions/download-artifact@v4
+        with:
+          name: nuget-package
+          path: artifacts
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Check publishing configuration
+        env:
+          NUGET_USER: ${{ secrets.NUGET_USER }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${NUGET_USER}" ]]; then
+            echo "::error::The repository secret NUGET_USER is not set. It must hold your nuget.org username (profile name, not email). See the setup notes at the top of this workflow."
+            exit 1
+          fi
+
+      # Exchanged immediately before the push: the key nuget.org returns is valid for one hour,
+      # and each OIDC token buys exactly one key.
+      - name: Exchange OIDC token for a short-lived nuget.org API key
+        id: login
+        uses: NuGet/login@v1
+        with:
+          user: ${{ secrets.NUGET_USER }}
+
+      - name: Push to nuget.org
+        env:
+          # Passed through the environment rather than interpolated into the script, so the key
+          # never appears in the rendered command line.
+          NUGET_API_KEY: ${{ steps.login.outputs.NUGET_API_KEY }}
+        run: |
+          set -euo pipefail
+          # The glob is quoted so the NuGet client expands it; the matching .snupkg is pushed
+          # automatically alongside each .nupkg. --skip-duplicate makes re-running a tag harmless.
+          dotnet nuget push "artifacts/*.nupkg" \
+            --api-key "${NUGET_API_KEY}" \
+            --source https://api.nuget.org/v3/index.json \
+            --skip-duplicate
+          echo "Published version ${{ needs.build.outputs.version }} to nuget.org" >> "$GITHUB_STEP_SUMMARY"
