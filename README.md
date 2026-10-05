@@ -338,12 +338,8 @@ immediately before the push, so it cannot expire while the build is still runnin
 
 - **Claim the package id.** `USPS.AddressValidation` was unregistered on nuget.org at the time of
   writing, but ids are first-come. Publishing the first version claims it.
-- **Set the repository URLs.** `RepositoryUrl` and `PackageProjectUrl` in the csproj are
-  `https://github.com/OWNER/REPO` placeholders. The workflow overrides both from the Actions
-  context, so packages built by CI are always correct; fix them anyway so local `dotnet pack`
-  produces the same thing.
-- **Check the author and copyright.** `Authors`, `Company` and `Copyright` are all `CDB`, and the
-  `LICENSE` file names the same copyright holder.
+- **Register the trusted publishing policy**, as described above. Without it the publish job fails
+  at the token exchange, after a green build.
 - **Consider gating the publish.** The `publish` job has a commented-out `environment: nuget`.
   Create that environment and add required reviewers to make every release a manual approval —
   then set the same environment name on the trusted publishing policy.
