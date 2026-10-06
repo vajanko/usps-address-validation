@@ -1,4 +1,4 @@
-using System.Text.RegularExpressions;
+using USPS.AddressValidation.Internal;
 using USPS.AddressValidation.Models;
 
 namespace USPS.AddressValidation.Validation;
@@ -7,19 +7,13 @@ namespace USPS.AddressValidation.Validation;
 /// Checks an <see cref="AddressInput"/> against the constraints the USPS Addresses API documents,
 /// so obviously unusable input is rejected without spending a call.
 /// </summary>
-public static partial class AddressInputValidator
+public static class AddressInputValidator
 {
     private const int MaxFirmLength = 50;
     private const int MaxStreetAddressLength = 50;
     private const int MaxSecondaryAddressLength = 50;
     private const int MaxCityLength = 28;
     private const int MaxUrbanizationLength = 96;
-
-    [GeneratedRegex(@"^\d{5}$")]
-    private static partial Regex ZipCodePattern { get; }
-
-    [GeneratedRegex(@"^\d{4}$")]
-    private static partial Regex ZipPlus4Pattern { get; }
 
     /// <summary>
     /// Validates <paramref name="input"/> and returns every problem found. An empty list means the
@@ -65,18 +59,11 @@ public static partial class AddressInputValidator
                 nameof(AddressInput.State)));
         }
 
-        if (hasZip && !ZipCodePattern.IsMatch(input.ZipCode!.Trim()))
+        if (hasZip && !ZipCodeParser.IsValid(input.ZipCode))
         {
             errors.Add(Error(
-                $"'{input.ZipCode}' is not a valid 5-digit ZIP Code.",
+                $"'{input.ZipCode}' is not a valid ZIP Code. Expected 00000 or 00000-0000.",
                 nameof(AddressInput.ZipCode)));
-        }
-
-        if (!string.IsNullOrWhiteSpace(input.ZipPlus4) && !ZipPlus4Pattern.IsMatch(input.ZipPlus4.Trim()))
-        {
-            errors.Add(Error(
-                $"'{input.ZipPlus4}' is not a valid 4-digit ZIP+4 add-on.",
-                nameof(AddressInput.ZipPlus4)));
         }
 
         if (!string.IsNullOrWhiteSpace(input.Firm) && input.Firm.Trim().Length > MaxFirmLength)

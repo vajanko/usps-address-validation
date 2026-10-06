@@ -246,8 +246,7 @@ public sealed class UspsAddressValidatorTests
             SecondaryAddress = "Ste 200",
             City = "Washington",
             State = "dc",
-            ZipCode = "20007",
-            ZipPlus4 = "3704",
+            ZipCode = "20007-3704",
         });
 
         var request = Assert.Single(harness.Handler.AddressRequests);
@@ -262,12 +261,67 @@ public sealed class UspsAddressValidatorTests
         Assert.Contains("streetAddress=3120%20M%20St%20NW", query, StringComparison.Ordinal);
         Assert.Contains("secondaryAddress=Ste%20200", query, StringComparison.Ordinal);
         Assert.Contains("city=Washington", query, StringComparison.Ordinal);
+        Assert.Contains("firm=Acme%20%26%20Co", query, StringComparison.Ordinal);
+
+        // The single ZIP Code is split into the two parameters USPS expects.
         Assert.Contains("ZIPCode=20007", query, StringComparison.Ordinal);
         Assert.Contains("ZIPPlus4=3704", query, StringComparison.Ordinal);
-        Assert.Contains("firm=Acme%20%26%20Co", query, StringComparison.Ordinal);
+        Assert.DoesNotContain("ZIPCode=20007-3704", query, StringComparison.Ordinal);
 
         // The state is upper-cased because USPS matches it against a case-sensitive pattern.
         Assert.Contains("state=DC", query, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Five_digit_zip_code_sends_no_add_on_parameter()
+    {
+        using var harness = TestHarness.WithToken(h => h.EnqueueJson(HttpStatusCode.OK, TestPayloads.ExactMatch));
+
+        await harness.ValidateAsync(AddressInput.Create("3120 M St NW", zipCode: "20007"));
+
+        var query = Assert.Single(harness.Handler.AddressRequests).RequestUri!.Query;
+        Assert.Contains("ZIPCode=20007", query, StringComparison.Ordinal);
+        Assert.DoesNotContain("ZIPPlus4", query, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Surrounding_whitespace_in_the_zip_code_is_trimmed()
+    {
+        using var harness = TestHarness.WithToken(h => h.EnqueueJson(HttpStatusCode.OK, TestPayloads.ExactMatch));
+
+        await harness.ValidateAsync(AddressInput.Create("3120 M St NW", zipCode: "  20007-3704 "));
+
+        var query = Assert.Single(harness.Handler.AddressRequests).RequestUri!.Query;
+        Assert.Contains("ZIPCode=20007", query, StringComparison.Ordinal);
+        Assert.Contains("ZIPPlus4=3704", query, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task A_supplied_full_zip_code_is_not_reported_as_a_change()
+    {
+        using var harness = TestHarness.WithToken(h => h.EnqueueJson(HttpStatusCode.OK, TestPayloads.ExactMatch));
+
+        // The payload returns ZIPCode 20007 and ZIPPlus4 3704, matching both halves of the input.
+        var result = await harness.ValidateAsync(
+            AddressInput.Create("3120 M St NW", city: "Washington", state: "DC", zipCode: "20007-3704"));
+
+        Assert.DoesNotContain(result.Changes, c => c.Field == nameof(UspsAddress.ZipCode));
+        Assert.DoesNotContain(result.Changes, c => c.Field == nameof(UspsAddress.ZipPlus4));
+    }
+
+    [Fact]
+    public async Task A_five_digit_input_reports_only_the_add_on_as_completed()
+    {
+        using var harness = TestHarness.WithToken(h => h.EnqueueJson(HttpStatusCode.OK, TestPayloads.ExactMatch));
+
+        var result = await harness.ValidateAsync(
+            AddressInput.Create("3120 M St NW", city: "Washington", state: "DC", zipCode: "20007"));
+
+        Assert.DoesNotContain(result.Changes, c => c.Field == nameof(UspsAddress.ZipCode));
+
+        var addOn = Assert.Single(result.Changes, c => c.Field == nameof(UspsAddress.ZipPlus4));
+        Assert.Equal(AddressChangeKind.Completed, addOn.Kind);
+        Assert.Equal("3704", addOn.Standardized);
     }
 
     [Fact]

@@ -147,6 +147,9 @@ public sealed class UspsAddressValidator : IUspsAddressValidator
 
     internal Uri BuildRequestUri(AddressInput address)
     {
+        // USPS takes the two halves of a ZIP+4 as separate parameters; callers supply one value.
+        var (zip5, zipPlus4) = ZipCodeParser.Split(address.ZipCode);
+
         var query = new List<string>(8);
         Add(query, "firm", address.Firm);
         Add(query, "streetAddress", address.StreetAddress);
@@ -154,8 +157,8 @@ public sealed class UspsAddressValidator : IUspsAddressValidator
         Add(query, "city", address.City);
         Add(query, "state", address.State?.ToUpperInvariant());
         Add(query, "urbanization", address.Urbanization);
-        Add(query, "ZIPCode", address.ZipCode);
-        Add(query, "ZIPPlus4", address.ZipPlus4);
+        Add(query, "ZIPCode", zip5);
+        Add(query, "ZIPPlus4", zipPlus4);
 
         var relative = $"{AddressPath}?{string.Join("&", query)}";
         return new Uri(_options.ResolvedBaseAddress, relative);

@@ -24,8 +24,7 @@ var switchMappings = new Dictionary<string, string>
     ["--secondary"] = "Address:SecondaryAddress",
     ["--city"] = "Address:City",
     ["--state"] = "Address:State",
-    ["--zip"] = "Address:ZipCode",
-    ["--zip4"] = "Address:ZipPlus4",
+    ["--zip"] = "Address:ZipCode",   // 20007 or 20007-3704
     ["--firm"] = "Address:Firm",
 };
 
@@ -163,7 +162,6 @@ static AddressInput? BuildRequestedAddress(IConfigurationSection section)
         City = section["City"],
         State = section["State"],
         ZipCode = section["ZipCode"],
-        ZipPlus4 = section["ZipPlus4"],
     };
 }
 

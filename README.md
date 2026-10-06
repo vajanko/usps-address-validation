@@ -166,8 +166,22 @@ Useful members:
 
 Before spending a call, the library validates the input against the constraints in the USPS
 specification: a street address is required; either city **and** state, or a ZIP Code; the state
-must be one of the 62 codes USPS accepts; ZIP Codes must be five digits and ZIP+4 four. Failures
-come back as `Status == InvalidInput` with the offending field named — no request is sent.
+must be one of the 62 codes USPS accepts. Failures come back as `Status == InvalidInput` with the
+offending field named — no request is sent.
+
+`AddressInput.ZipCode` is one field holding the whole ZIP Code, in either of the two forms USPS
+writes:
+
+```csharp
+AddressInput.Create("3120 M St NW", zipCode: "20007");       // 5-digit
+AddressInput.Create("3120 M St NW", zipCode: "20007-3704");  // ZIP+4
+```
+
+Anything else — nine digits with no hyphen, a three-digit add-on, a space instead of the hyphen —
+is rejected locally. The USPS API takes the two halves as separate `ZIPCode` and `ZIPPlus4`
+parameters; the client splits the value on the way out, so callers never deal with that. The
+*response* keeps USPS's own shape: `UspsAddress.ZipCode` and `UspsAddress.ZipPlus4` are separate,
+with `FullZipCode` giving `20007-3704`.
 
 ---
 

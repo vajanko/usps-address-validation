@@ -101,31 +101,35 @@ public sealed class AddressInputValidatorTests
     }
 
     [Theory]
-    [InlineData("2000")]
-    [InlineData("200077")]
-    [InlineData("2000A")]
+    [InlineData("20007")]
     [InlineData("20007-3704")]
+    [InlineData("  20007-3704  ")]
+    [InlineData("00000")]
+    public void Accepts_both_zip_code_forms(string zip)
+    {
+        var errors = AddressInputValidator.Validate(AddressInput.Create("3120 M St NW", zipCode: zip));
+
+        Assert.Empty(errors);
+    }
+
+    [Theory]
+    [InlineData("2000")]           // too short
+    [InlineData("200077")]         // too long
+    [InlineData("2000A")]          // not digits
+    [InlineData("20007-370")]      // add-on too short
+    [InlineData("20007-37044")]    // add-on too long
+    [InlineData("20007-37O4")]     // add-on not digits
+    [InlineData("200073704")]      // nine digits without the hyphen
+    [InlineData("20007-")]         // trailing hyphen, no add-on
+    [InlineData("-3704")]          // add-on only
+    [InlineData("20007 3704")]     // space instead of a hyphen
     public void Rejects_malformed_zip_code(string zip)
     {
         var errors = AddressInputValidator.Validate(AddressInput.Create("3120 M St NW", zipCode: zip));
 
-        Assert.Contains(errors, e => e.Field == nameof(AddressInput.ZipCode));
-    }
-
-    [Theory]
-    [InlineData("370")]
-    [InlineData("37044")]
-    [InlineData("37O4")]
-    public void Rejects_malformed_zip_plus_four(string zipPlus4)
-    {
-        var errors = AddressInputValidator.Validate(new AddressInput
-        {
-            StreetAddress = "3120 M St NW",
-            ZipCode = "20007",
-            ZipPlus4 = zipPlus4,
-        });
-
-        Assert.Contains(errors, e => e.Field == nameof(AddressInput.ZipPlus4));
+        var error = Assert.Single(errors);
+        Assert.Equal(nameof(AddressInput.ZipCode), error.Field);
+        Assert.Contains("00000-0000", error.Message, StringComparison.Ordinal);
     }
 
     [Fact]
