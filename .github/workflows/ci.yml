@@ -123,9 +123,9 @@ jobs:
         # The 110 unit tests run against a stubbed HttpMessageHandler and need no credentials.
         # The live USPS integration tests skip themselves unless credentials are present - to run
         # them here too, uncomment the env block and add the two secrets to the repository.
-        # env:
-        #   USPS_CLIENT_ID: ${{ secrets.USPS_CLIENT_ID }}
-        #   USPS_CLIENT_SECRET: ${{ secrets.USPS_CLIENT_SECRET }}
+        env:
+          USPS_CLIENT_ID: ${{ secrets.USPS_CLIENT_ID }}
+          USPS_CLIENT_SECRET: ${{ secrets.USPS_CLIENT_SECRET }}
         run: >
           dotnet test
           --configuration "$CONFIGURATION"
