@@ -9,7 +9,8 @@ namespace USPS.Tests.Integration;
 /// <remarks>
 /// Supply them either as environment variables — <c>USPS_CLIENT_ID</c>, <c>USPS_CLIENT_SECRET</c>
 /// and optionally <c>USPS_ENVIRONMENT</c> (<c>Production</c> or <c>Testing</c>) — or as user
-/// secrets under the keys <c>Usps:ClientId</c> and <c>Usps:ClientSecret</c>:
+/// the test project's <c>appsettings.json</c>, or as user secrets under the keys
+/// <c>Usps:ClientId</c> and <c>Usps:ClientSecret</c>:
 /// <code>
 /// dotnet user-secrets set "Usps:ClientId" "your-consumer-key" --project tests/USPS.Tests
 /// dotnet user-secrets set "Usps:ClientSecret" "your-consumer-secret" --project tests/USPS.Tests
@@ -29,8 +30,8 @@ internal static class UspsCredentials
 
     /// <summary>The reason shown when an integration test is skipped.</summary>
     public const string SkipReason =
-        "No USPS credentials configured. Set USPS_CLIENT_ID and USPS_CLIENT_SECRET " +
-        "(or the Usps:ClientId / Usps:ClientSecret user secrets) to run the live API tests.";
+        "No USPS credentials configured. Set Usps:ClientId and Usps:ClientSecret in appsettings.json, " +
+        "user secrets, or the USPS_CLIENT_ID and USPS_CLIENT_SECRET environment variables to run the live API tests.";
 
     /// <summary>Returns the options, or skips the calling test when none are configured.</summary>
     public static UspsOptions RequireOptions()
@@ -42,6 +43,8 @@ internal static class UspsCredentials
     private static UspsOptions? Load()
     {
         var configuration = new ConfigurationBuilder()
+            .SetBasePath(AppContext.BaseDirectory)
+            .AddJsonFile("appsettings.json", optional: true)
             .AddUserSecrets<UspsAddressValidatorIntegrationTests>(optional: true)
             .AddEnvironmentVariables()
             .Build();
