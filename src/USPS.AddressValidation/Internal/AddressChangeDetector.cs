@@ -22,8 +22,11 @@ internal static class AddressChangeDetector
         Compare(changes, nameof(UspsAddress.SecondaryAddress), input.SecondaryAddress, standardized.SecondaryAddress);
         Compare(changes, nameof(UspsAddress.City), input.City, standardized.City);
         Compare(changes, nameof(UspsAddress.State), input.State, standardized.State);
-        Compare(changes, nameof(UspsAddress.ZipCode), input.ZipCode, standardized.ZipCode);
-        Compare(changes, nameof(UspsAddress.ZipPlus4), input.ZipPlus4, standardized.ZipPlus4);
+        // The caller supplies one ZIP Code value; USPS answers with the two halves separately, so
+        // split the input to report each half on its own - "ZIP+4 completed" is the useful signal.
+        var (zip5, zipPlus4) = ZipCodeParser.Split(input.ZipCode);
+        Compare(changes, nameof(UspsAddress.ZipCode), zip5, standardized.ZipCode);
+        Compare(changes, nameof(UspsAddress.ZipPlus4), zipPlus4, standardized.ZipPlus4);
         Compare(changes, nameof(UspsAddress.Urbanization), input.Urbanization, standardized.Urbanization);
 
         return changes;

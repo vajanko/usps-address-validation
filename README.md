@@ -166,8 +166,22 @@ Useful members:
 
 Before spending a call, the library validates the input against the constraints in the USPS
 specification: a street address is required; either city **and** state, or a ZIP Code; the state
-must be one of the 62 codes USPS accepts; ZIP Codes must be five digits and ZIP+4 four. Failures
-come back as `Status == InvalidInput` with the offending field named — no request is sent.
+must be one of the 62 codes USPS accepts. Failures come back as `Status == InvalidInput` with the
+offending field named — no request is sent.
+
+`AddressInput.ZipCode` is one field holding the whole ZIP Code, in either of the two forms USPS
+writes:
+
+```csharp
+AddressInput.Create("3120 M St NW", zipCode: "20007");       // 5-digit
+AddressInput.Create("3120 M St NW", zipCode: "20007-3704");  // ZIP+4
+```
+
+Anything else — nine digits with no hyphen, a three-digit add-on, a space instead of the hyphen —
+is rejected locally. The USPS API takes the two halves as separate `ZIPCode` and `ZIPPlus4`
+parameters; the client splits the value on the way out, so callers never deal with that. The
+*response* keeps USPS's own shape: `UspsAddress.ZipCode` and `UspsAddress.ZipPlus4` are separate,
+with `FullZipCode` giving `20007-3704`.
 
 ---
 
@@ -338,12 +352,8 @@ immediately before the push, so it cannot expire while the build is still runnin
 
 - **Claim the package id.** `USPS.AddressValidation` was unregistered on nuget.org at the time of
   writing, but ids are first-come. Publishing the first version claims it.
-- **Set the repository URLs.** `RepositoryUrl` and `PackageProjectUrl` in the csproj are
-  `https://github.com/OWNER/REPO` placeholders. The workflow overrides both from the Actions
-  context, so packages built by CI are always correct; fix them anyway so local `dotnet pack`
-  produces the same thing.
-- **Check the author and copyright.** `Authors`, `Company` and `Copyright` are all `CDB`, and the
-  `LICENSE` file names the same copyright holder.
+- **Register the trusted publishing policy**, as described above. Without it the publish job fails
+  at the token exchange, after a green build.
 - **Consider gating the publish.** The `publish` job has a commented-out `environment: nuget`.
   Create that environment and add required reviewers to make every release a manual approval —
   then set the same environment name on the trusted publishing policy.

@@ -30,15 +30,23 @@ public sealed record AddressInput
     /// <summary>Urbanization code. Only meaningful for Puerto Rico addresses.</summary>
     public string? Urbanization { get; init; }
 
-    /// <summary>Five-digit ZIP Code.</summary>
+    /// <summary>
+    /// The ZIP Code, either five digits (<c>20007</c>) or the full ZIP+4 (<c>20007-3704</c>).
+    /// </summary>
+    /// <remarks>
+    /// The USPS API takes the two parts as separate parameters; the client splits this value on
+    /// the way out, so callers never have to.
+    /// </remarks>
     public string? ZipCode { get; init; }
-
-    /// <summary>Four-digit ZIP+4 add-on.</summary>
-    public string? ZipPlus4 { get; init; }
 
     /// <summary>
     /// Creates an input from the most common set of fields.
     /// </summary>
+    /// <param name="streetAddress">House number and street name.</param>
+    /// <param name="city">City name.</param>
+    /// <param name="state">Two-character state code.</param>
+    /// <param name="zipCode">ZIP Code, as <c>20007</c> or <c>20007-3704</c>.</param>
+    /// <param name="secondaryAddress">Secondary unit designator and value.</param>
     public static AddressInput Create(
         string streetAddress,
         string? city = null,
@@ -65,7 +73,7 @@ public sealed record AddressInput
         {
             string.IsNullOrWhiteSpace(City) ? null : City.Trim(),
             string.IsNullOrWhiteSpace(State) ? null : State.Trim(),
-            string.IsNullOrWhiteSpace(ZipPlus4) ? ZipCode?.Trim() : $"{ZipCode?.Trim()}-{ZipPlus4.Trim()}",
+            string.IsNullOrWhiteSpace(ZipCode) ? null : ZipCode.Trim(),
         }.Where(p => !string.IsNullOrWhiteSpace(p)));
 
         if (lastLine.Length > 0) parts.Add(lastLine);
